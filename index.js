@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import session from 'express-session';
+import cookieParser from 'cookie-parser';
 
 const host = '0.0.0.0';
 const porta = 3000;
@@ -11,6 +12,7 @@ let listaProdutos = [];
 const app = express();
 
 app.use(express.urlencoded({ extended: true }));
+
 app.use(session({
     secret: 'MinH4Ch4v3S3cr3t4',
     resave: true,
@@ -20,9 +22,7 @@ app.use(session({
     }
 }));
 
-app.use(express.static(path.join(process.cwd(), 'publico')));
-
-app.use(usuarioEstaAutenticado,express.static(path.join(process.cwd(), 'protegido')));
+app.use(cookieParser());
 
 function usuarioEstaAutenticado(requisicao, resposta, next){
     if(requisicao.session.usuarioAutenticado){
@@ -166,11 +166,29 @@ function autenticaUsuario(requisicao, resposta){
     const senha = requisicao.body.senha;
     if (usuario == 'admin' && senha == '123'){
         requisicao.session.usuarioAutenticado = true;
+        resposta.cookie('dataUltimoAcesso', new Date().toLocaleString(),{
+            httpOnly: true,
+            maxAge: 1000 * 60 * 60 * 24 * 30
+        });
         resposta.redirect('/');
     }
     else{
+        resposta.write('<!DOCTYPE html>');
+        resposta.write('<html>');
+        resposta.write('<head>');
+        resposta.write('<meta charset="UTF-8">');
+        resposta.write('<title>Falha ao realizar login</title>');
+        resposta.write('</head>');
+        resposta.write('<body>');
         resposta.write('<p>Usuário ou senha inválidos!</p>');
         resposta.write('<a href="/login.html">Voltar</a>');
+        if (requisicao.cookies.dataUltimoAcesso){
+            resposta.write('<p>');
+            resposta.write('Seu último acesso foi em ' + requisicao.cookies.dataUltimoAcesso);
+            resposta.write('</p>');
+        }
+        resposta.write('</body>');
+        resposta.write('</html>');
         resposta.end();
     }
 }
@@ -184,6 +202,10 @@ app.get('/logout', (req, resp) =>{
     req.session.destroy();
     resp.redirect('/login.html');
 });
+
+app.use(express.static(path.join(process.cwd(), 'publico')));
+
+app.use(usuarioEstaAutenticado,express.static(path.join(process.cwd(), 'protegido')));
 
 app.post('/cadastrarProduto', usuarioEstaAutenticado, cadastrarProduto);
 
@@ -219,6 +241,13 @@ app.get('/listarProdutos', usuarioEstaAutenticado, (req,resp)=>{
     }
     resp.write('</table>');
     resp.write('<a href="/">Voltar</a>');
+    resp.write('<br/>');
+
+    if(req.cookies.dataUltimoAcesso){
+        resp.write('<p>');
+        resp.write('Seu último acesso foi em ' + req.cookies.dataUltimoAcesso);
+        resp.write('</p>');
+    }
     resp.write('</body>');
     resp.write('<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>')
     resp.write('</html>');
