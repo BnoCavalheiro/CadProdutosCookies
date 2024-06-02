@@ -1,16 +1,38 @@
 import express from 'express';
 import path from 'path';
+import session from 'express-session';
 
 const host = '0.0.0.0';
 const porta = 3000;
 
 let listaProdutos = [];
 
+
 const app = express();
 
 app.use(express.urlencoded({ extended: true }));
+app.use(session({
+    secret: 'MinH4Ch4v3S3cr3t4',
+    resave: true,
+    saveUninitialized: true,
+    cookie: {
+        maxAge: 1000 * 60 * 15
+    }
+}));
 
 app.use(express.static(path.join(process.cwd(), 'publico')));
+
+app.use(usuarioEstaAutenticado,express.static(path.join(process.cwd(), 'protegido')));
+
+function usuarioEstaAutenticado(requisicao, resposta, next){
+    if(requisicao.session.usuarioAutenticado){
+        next();
+    }
+    else{
+       resposta.redirect('/login.html');
+    }
+}
+
 function cadastrarProduto(requisicao, resposta){
     const codigo_barras = requisicao.body.codigo_barras;
     const descricao = requisicao.body.descricao;
@@ -139,10 +161,33 @@ crossorigin="anonymous"></script>
     }
 
 }
+function autenticaUsuario(requisicao, resposta){
+    const usuario = requisicao.body.usuario;
+    const senha = requisicao.body.senha;
+    if (usuario == 'admin' && senha == '123'){
+        requisicao.session.usuarioAutenticado = true;
+        resposta.redirect('/');
+    }
+    else{
+        resposta.write('<p>Usuário ou senha inválidos!</p>');
+        resposta.write('<a href="/login.html">Voltar</a>');
+        resposta.end();
+    }
+}
+app.post('/login',autenticaUsuario);
 
-app.post('/cadastrarProduto', cadastrarProduto);
+app.get('/login',(req,resp)=>{
+    resp.redirect('/login.html');
+});
 
-app.get('/listarProdutos', (req,resp)=>{
+app.get('/logout', (req, resp) =>{
+    req.session.destroy();
+    resp.redirect('/login.html');
+});
+
+app.post('/cadastrarProduto', usuarioEstaAutenticado, cadastrarProduto);
+
+app.get('/listarProdutos', usuarioEstaAutenticado, (req,resp)=>{
     resp.write('<html>');
     resp.write('<head>');
     resp.write('<title>Resultado do cadastro</title>');
